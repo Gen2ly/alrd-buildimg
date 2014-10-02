@@ -1,0 +1,433 @@
+#!/usr/bin/bash
+# Arch Linux Rescue Disk build image
+
+# Usage display
+if [[ $* = *\-h* ]] || [ $# -eq 0 ]; then
+  echo "${0##*/} [option] - Arch Linux Rescue Disk build image."
+  echo " [-b,--bios32], [-B,--bios64], [-u,--uefi32], [-U,--uefi64], [-a,--allfrm]"
+  exit 1
+fi
+
+# Options
+while [ $# -gt 0 ]; do
+  case $1 in
+    -b | --bios32 ) bios32=y ;;
+    -B | --bios64 ) bios64=y ;;
+    -u | --uefi32 ) uefi32=y ;;
+    -U | --uefi64 ) uefi64=y ;;
+    -a | --allfrm ) bios32=y; bios64=y; uefi32=y; uefi64=y ;;
+    -l | --locnet ) locnet=y ;;
+    * ) echo "Input unknown: $*"; exit 1 ;;
+  esac
+  shift
+done
+
+# Network test
+if [ "$locnet" ]; then network () { false ; }
+                  else network () { true  ; }; fi
+network && if ! curl -Is https://www.archlinux.org -o /tmp/url-head; then
+  echo "Network unavailable."
+  error=y
+fi
+
+# Root test
+if (( $EUID )); then
+  echo "Root privledges required."
+  error=y
+fi
+[ "$error" ] && exit 1
+
+
+# Variables
+blddist=archrescue
+blddate=$(date +%Y-%m)
+bldpdir=/tmp
+
+# Buildimage anyfirm i686 environment set
+bldimg_firm_32_envset () {
+
+  bldarch=i686
+  bldname="$blddist"_"$blddate"_"$bldarch"
+  bldrdir="$bldpdir"/"$bldname"_root
+  [ ! -d "$bldrdir" ] && mkdir -p "$bldrdir"
+
+  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/}; do
+    [ ! -d "$dir" ] && mkdir -p     "$dir"; done
+  for dir in $bldrdir/{dev,proc}; do
+    [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
+
+  bldadir="$bldpdir"/"$bldname"_aur
+  [ ! -d "$bldadir" ] && mkdir "$bldadir"
+
+  bldbdir="$bldpdir"/"$bldname"_boot
+
+  bldcdir="$bldpdir"/"$bldname"_cd
+  [ ! -d "$bldcdir" ] && mkdir -p "$bldcdir"
+
+}
+
+bldimg_firm_32_offpkg () {
+
+  mountpoint -q "$bldrdir"/dev     || mount --bind  /dev     "$bldrdir"/dev/
+  mountpoint -q "$bldrdir"/dev/pts || mount --bind  /dev/pts "$bldrdir"/dev/pts/
+  mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
+
+  network && sync=y
+  linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync base  abs b43-fwcutter binutils bridge-utils btrfs-progs cdrkit ddrescue dnsmasq dnsutils dos2unix ethtool fbdump fsarchiver git gnu-netcat gptfdisk grub haveged hdparm hwdetect hwinfo intel-ucode iotop irssi links memtest86+ mtools nmap ntp openssh os-prober partclone parted partimage pwgen rfkill rkhunter smartmontools syslinux tcpdump testdisk tmux traceroute transmission-cli tree vim-minimal vim-jellybeans wgetpaste
+
+}
+
+bldimg_firm_32_aurpkg () {
+
+  bldapkg=(archrescue-setup armrr arpa genscripts gently-bashrc gently-vim mkinitcpio-unsquashtmpfs rback trizen vim-colorscheme-pencil-git vim-default-editor vim-pandoc-syntax-git)
+  for pkg in "${bldapkg[@]}"; do
+    pkgpath="$bldadir"/"$pkg"/"$pkg"
+    if [ ! -f $pkgpath*.pkg.tar* ]; then
+      network && \
+      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --asroot \
+        -Sb "$pkg"
+    fi
+    pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
+  done
+
+  umount --recursive "$bldrdir"/{dev,proc}
+
+}
+
+# Buildimg anyfirm anyarch settings
+bldimg_firm_an_settng () {
+
+  echo "$blddist" | tee "$bldrdir"/etc/hostname
+
+  cd "$bldrdir"
+  ln -rsf usr/lib/systemd/system/dhcpcd.service  \
+    etc/systemd/system/multi-user.target.wants/dhcpcd.service
+  ln -rsf usr/lib/systemd/system/dnsmasq.service \
+    etc/systemd/system/multi-user.target.wants/dnsmasq.service
+  ln -rsf usr/lib/systemd/system/gpm.service     \
+    etc/systemd/system/multi-user.target.wants/gpm.service
+
+  [ ! -d "$bldrdir"/etc/systemd/system/getty@.service.d ] && \
+    mkdir "$bldrdir"/etc/systemd/system/getty@.service.d
+  echo -e "[Service]\nExecStartPre=/bin/sh -c 'setleds +num < /dev/%I'" | \
+    tee "$bldrdir"/etc/systemd/system/getty@.service.d/activate-numlock.conf
+
+  sed -i 's/^#listen-address=/listen-address=127.0.0.1/' \
+    "$bldrdir"/etc/dnsmasq.conf
+  echo "nameserver 127.0.0.1" | tee "$bldrdir"/etc/resolv.conf.head
+
+  for dir in "$bldrdir"/root/.{cache/vim/backup,config/{readline,vim},local/{bin,share/vim/{after,colors,plugin,syntax}}}; do
+    [ ! -d "$dir" ] && mkdir -p "$dir"
+  done
+
+  if ! grep -q "gently.bashrc" "$bldrdir"/etc/bash.bashrc; then
+    echo -e "\nsource /usr/share/doc/gently-bashrc/gently.bashrc" | \
+      tee -a "$bldrdir"/etc/bash.bashrc
+  fi
+  sed -i 's/^runtime! archlinux.vim/runtime! gently.vim/' "$bldrdir"/etc/vimrc
+  echo -e "set show-all-if-unmodified on" | \
+    tee "$bldrdir"/root/.config/readline/inputrc
+
+}
+
+bldimg_bios_an_bootdi () {
+
+  [ -d "$bldrdir"/boot ] && mv     "$bldrdir"/boot "$bldbdir"
+  [ -d "$bldcdir"/boot ] && rm -rf "$bldcdir"/boot
+  cp -a "$bldbdir" "$bldcdir"/boot
+
+  bldfirm=bios
+  install -Dm755 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/isolinux.bin \
+    "$bldcdir"/boot/syslinux/isolinux.bin
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/memdisk      \
+    "$bldcdir"/boot/syslinux/memdisk
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/*.c32        \
+    "$bldcdir"/boot/syslinux/
+  install -Dm644 "$bldrdir"/usr/share/hwdata/pci.ids                 \
+    "$bldcdir"/boot/syslinux/pci.ids
+
+  bldscfg="$bldcdir"/boot/syslinux/syslinux.cfg
+        sed -i 's/^DEFAULT arch$/DEFAULT archrescue/'         "$bldscfg"
+        sed -i 's/^LABEL arch$/LABEL archrescue/'             "$bldscfg"
+        sed -i  '/^LABEL archfallback/,/^$/d'                 "$bldscfg"
+        sed -i 's/^    MENU LABEL Arch Linux$/    MENU LABEL Arch Linux Rescue/' "$bldscfg"
+        sed -i 's#^    APPEND.*$#    APPEND root=/new_root squashimgpath=/dev/sr0:/rootdir.squashfs squashtmpsize=1G quiet#g'                "$bldscfg"
+        sed -i '/COM32 hdt.c32$/a \ \nLABEL memtest\n        MENU LABEL Memtest86+ (RAM test)\n        LINUX /boot/memtest86+/memtest.bin' \
+          "$bldscfg"
+
+  if ! grep -q ^MODULES.*isofs "$bldrdir"/etc/mkinitcpio.conf; then
+    sed -i 's/^MODULES="/MODULES="isofs /' "$bldrdir"/etc/mkinitcpio.conf
+  fi
+  sed -i '/^HOOKS/ s/block filesystems /block unsquashtmpfs filesystems /' \
+    "$bldrdir"/etc/mkinitcpio.conf
+  sed -i '/^HOOKS/ s/fsck//' "$bldrdir"/etc/mkinitcpio.conf
+  mkinitcpio -c "$bldrdir"/etc/mkinitcpio.conf -g "$bldcdir"/boot/initramfs-linux.img
+  [ -f "$bldcdir"/boot/initramfs-linux-fallback.img ] && rm \
+    "$bldcdir"/boot/initramfs-linux-fallback.img
+
+}
+
+bldimg_firm_32_squash () {
+
+  mksquashfs "$bldrdir"/ "$bldcdir"/rootdir.squashfs -comp xz -noappend \
+    -progress
+
+}
+
+bldimg_bios_32_geniso () {
+
+  bldfirm=bios
+  bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
+  bldisop=/${bldison}.iso
+
+  cd "$bldcdir"
+  genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
+    -b boot/syslinux/isolinux.bin -c boot/syslinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table        \
+    -o "$bldisop" .
+  chown 1000:users "$bldisop"
+
+}
+
+bldimg_firm_64_envset () {
+
+  bldarch=x86-64
+  bldname="$blddist"_"$blddate"_"$bldarch"
+  bldrdir="$bldpdir"/"$bldname"_root
+  [ ! -d "$bldrdir" ] && mkdir -p "$bldrdir"
+
+  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/}; do
+    [ ! -d "$dir" ] && mkdir -p     "$dir"; done
+  for dir in $bldrdir/{dev,proc}; do
+    [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
+
+  bldadir="$bldpdir"/"$bldname"_aur
+  [ ! -d "$bldadir" ] && mkdir "$bldadir"
+
+  bldbdir="$bldpdir"/"$bldname"_boot
+
+  bldcdir="$bldpdir"/"$bldname"_cd
+  [ ! -d "$bldcdir" ] && mkdir -p "$bldcdir"
+
+}
+
+bldimg_firm_64_offpkg () {
+
+  mountpoint -q "$bldrdir"/dev     || mount --bind  /dev     "$bldrdir"/dev/
+  mountpoint -q "$bldrdir"/dev/pts || mount --bind  /dev/pts "$bldrdir"/dev/pts/
+  mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
+
+  network && sync=y
+  linux64 pacman --root "$bldrdir" --noconfirm --needed -S$sync base  abs b43-fwcutter binutils bridge-utils btrfs-progs cdrkit ddrescue dnsmasq dnsutils dos2unix ethtool fbdump fsarchiver git gnu-netcat gptfdisk grub haveged hdparm hwdetect hwinfo intel-ucode iotop irssi links memtest86+ mtools nmap ntp openssh os-prober partclone parted partimage pwgen rfkill rkhunter smartmontools syslinux tcpdump testdisk tmux traceroute transmission-cli tree vim-minimal vim-jellybeans wgetpaste zip
+
+}
+
+bldimg_firm_64_aurpkg () {
+
+  bldapkg=(archrescue-setup armrr arpa genscripts gently-bashrc gently-vim mkinitcpio-unsquashtmpfs rback trizen vim-colorscheme-pencil-git vim-default-editor vim-pandoc-syntax-git)
+  for pkg in "${bldapkg[@]}"; do
+    pkgpath="$bldadir"/"$pkg"/"$pkg"
+    if [ ! -f $pkgpath*.pkg.tar* ]; then
+      network && \
+      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --asroot \
+        -Sb "$pkg"
+    fi
+    pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
+  done
+
+  umount --recursive "$bldrdir"/{dev,proc}
+
+}
+
+bldimg_firm_64_squash () {
+
+  mksquashfs "$bldrdir"/ "$bldcdir"/rootdir.squashfs -comp xz -noappend \
+    -progress
+
+}
+
+bldimg_bios_64_geniso () {
+
+  bldfirm=bios
+  bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
+  bldisop=/${bldison}.iso
+
+  cd "$bldcdir"
+  genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
+    -b boot/syslinux/isolinux.bin -c boot/syslinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table        \
+    -o "$bldisop" .
+  chown 1000:users "$bldisop"
+
+}
+
+bldimg_uefi_32_bootdi () {
+
+  [ -d "$bldrdir"/boot ] && mv     "$bldrdir"/boot "$bldbdir"
+  [ -d "$bldcdir"/boot ] && rm -rf "$bldcdir"/boot
+  cp -a "$bldbdir" "$bldcdir"/boot
+
+  bldfirm=bios
+  install -Dm755 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/isolinux.bin \
+    "$bldcdir"/boot/syslinux/isolinux.bin
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/memdisk      \
+    "$bldcdir"/boot/syslinux/memdisk
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/*.c32        \
+    "$bldcdir"/boot/syslinux/
+  install -Dm644 "$bldrdir"/usr/share/hwdata/pci.ids                 \
+    "$bldcdir"/boot/syslinux/pci.ids
+
+  bldscfg="$bldcdir"/boot/syslinux/syslinux.cfg
+        sed -i 's/^DEFAULT arch$/DEFAULT archrescue/'         "$bldscfg"
+        sed -i 's/^LABEL arch$/LABEL archrescue/'             "$bldscfg"
+        sed -i  '/^LABEL archfallback/,/^$/d'                 "$bldscfg"
+        sed -i 's/^    MENU LABEL Arch Linux$/    MENU LABEL Arch Linux Rescue/' "$bldscfg"
+        sed -i 's#^    APPEND.*$#    APPEND root=/new_root squashimgpath=/dev/sr0:/rootdir.squashfs squashtmpsize=1G quiet#g'                "$bldscfg"
+        sed -i '/COM32 hdt.c32$/a \ \nLABEL memtest\n        MENU LABEL Memtest86+ (RAM test)\n        LINUX /boot/memtest86+/memtest.bin' \
+          "$bldscfg"
+
+  if ! grep -q ^MODULES.*isofs "$bldrdir"/etc/mkinitcpio.conf; then
+    sed -i 's/^MODULES="/MODULES="isofs /' "$bldrdir"/etc/mkinitcpio.conf
+  fi
+  sed -i '/^HOOKS/ s/block filesystems /block unsquashtmpfs filesystems /' \
+    "$bldrdir"/etc/mkinitcpio.conf
+  sed -i '/^HOOKS/ s/fsck//' "$bldrdir"/etc/mkinitcpio.conf
+  mkinitcpio -c "$bldrdir"/etc/mkinitcpio.conf -g "$bldcdir"/boot/initramfs-linux.img
+  [ -f "$bldcdir"/boot/initramfs-linux-fallback.img ] && rm \
+    "$bldcdir"/boot/initramfs-linux-fallback.img
+
+}
+
+bldimg_uefi_32_geniso () {
+
+  bldfirm=bios
+  bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
+  bldisop=/${bldison}.iso
+
+  cd "$bldcdir"
+  genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
+    -b boot/syslinux/isolinux.bin -c boot/syslinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table        \
+    -o "$bldisop" .
+  chown 1000:users "$bldisop"
+
+}
+
+bldimg_uefi_64_bootdi () {
+  
+  [ -d "$bldrdir"/boot ] && mv     "$bldrdir"/boot "$bldbdir"
+  [ -d "$bldcdir"/boot ] && rm -rf "$bldcdir"/boot
+  cp -a "$bldbdir" "$bldcdir"/boot
+
+  bldfirm=bios
+  install -Dm755 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/isolinux.bin \
+    "$bldcdir"/boot/syslinux/isolinux.bin
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/memdisk      \
+    "$bldcdir"/boot/syslinux/memdisk
+  install -Dm644 "$bldrdir"/usr/lib/syslinux/"$bldfirm"/*.c32        \
+    "$bldcdir"/boot/syslinux/
+  install -Dm644 "$bldrdir"/usr/share/hwdata/pci.ids                 \
+    "$bldcdir"/boot/syslinux/pci.ids
+
+  bldscfg="$bldcdir"/boot/syslinux/syslinux.cfg
+        sed -i 's/^DEFAULT arch$/DEFAULT archrescue/'         "$bldscfg"
+        sed -i 's/^LABEL arch$/LABEL archrescue/'             "$bldscfg"
+        sed -i  '/^LABEL archfallback/,/^$/d'                 "$bldscfg"
+        sed -i 's/^    MENU LABEL Arch Linux$/    MENU LABEL Arch Linux Rescue/' "$bldscfg"
+        sed -i 's#^    APPEND.*$#    APPEND root=/new_root squashimgpath=/dev/sr0:/rootdir.squashfs squashtmpsize=1G quiet#g'                "$bldscfg"
+        sed -i '/COM32 hdt.c32$/a \ \nLABEL memtest\n        MENU LABEL Memtest86+ (RAM test)\n        LINUX /boot/memtest86+/memtest.bin' \
+          "$bldscfg"
+
+  if ! grep -q ^MODULES.*isofs "$bldrdir"/etc/mkinitcpio.conf; then
+    sed -i 's/^MODULES="/MODULES="isofs /' "$bldrdir"/etc/mkinitcpio.conf
+  fi
+  sed -i '/^HOOKS/ s/block filesystems /block unsquashtmpfs filesystems /' \
+    "$bldrdir"/etc/mkinitcpio.conf
+  sed -i '/^HOOKS/ s/fsck//' "$bldrdir"/etc/mkinitcpio.conf
+  mkinitcpio -c "$bldrdir"/etc/mkinitcpio.conf -g "$bldcdir"/boot/initramfs-linux.img
+  [ -f "$bldcdir"/boot/initramfs-linux-fallback.img ] && rm \
+    "$bldcdir"/boot/initramfs-linux-fallback.img
+
+}
+
+bldimg_uefi_64_geniso () {
+
+  bldfirm=bios
+  bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
+  bldisop=/${bldison}.iso
+
+  cd "$bldcdir"
+  genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
+    -b boot/syslinux/isolinux.bin -c boot/syslinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table        \
+    -o "$bldisop" .
+  chown 1000:users "$bldisop"
+
+}
+
+if [ "$bios32" ]; then
+  bldimg_firm_32_envset
+  bldimg_firm_32_offpkg
+  bldimg_firm_32_aurpkg
+  bldimg_firm_an_settng
+  bldimg_bios_an_bootdi
+  bldimg_firm_32_squash
+  bldimg_bios_32_geniso
+fi
+
+if [ "$bios64" ]; then
+  bldimg_firm_64_envset
+  bldimg_firm_64_offpkg
+  bldimg_firm_64_aurpkg
+  bldimg_firm_an_settng
+  bldimg_bios_an_bootdi
+  bldimg_firm_64_squash
+  bldimg_bios_64_geniso
+fi
+
+if [ "$uefi32" ]; then
+  bldimg_firm_32_envset
+  bldimg_firm_32_offpkg
+  bldimg_firm_32_aurpkg
+  bldimg_firm_an_settng
+  bldimg_uefi_an_bootdi
+  bldimg_firm_32_squash
+  bldimg_uefi_32_geniso
+fi
+
+if [ "$uefi64" ]; then
+  bldimg_firm_64_envset
+  bldimg_firm_64_offpkg
+  bldimg_firm_64_aurpkg
+  bldimg_firm_an_settng
+  bldimg_uefi_an_bootdi
+  bldimg_firm_64_squash
+  bldimg_uefi_64_geniso
+fi
+
+# Todo
+# * variables to configuration?
+#   * blddist=archrescue
+#   * blddate=$(date +%Y-%m)
+#   * bldpdir=/tmp
+#   * bldopkg= pacman packages
+#   * bldapkg= aur    packages
+#   * bldisod= iso dest. dir
+#   * bldchot="1000:users"
+# + Root test restore
+# + Network test restore
+# - aurget to manual download and compile
+# * makepkg, mkinitcpio as another architecture
+# + prevent aur package rebuild.
+# * quieter, custom feedback
+# * squashfs: and xz, add to hook?... better decompression time.
+# * squashfs: tmpfs is 1G... should it be reduced?
+# * programs: safecopy
+# * vim colorscheme: default for 8 colors
+# * explicit to author
+# * detect or set squashfs decompressed size to mkinitcpio hook, -info ??
+# * syslinux background color gray
+# * man-db --quiet from host? `systemctl start mand-db.service`.
+# * eject on login
+# * hwinfo?
+# * GRUB and Bootable ISO ?? http://lukeluo.blogspot.com/2013/06/grub-how-to-2-make-boot-able-iso-with.html)
