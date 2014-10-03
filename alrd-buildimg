@@ -37,11 +37,13 @@ if (( $EUID )); then
 fi
 [ "$error" ] && exit 1
 
-
 # Variables
-blddist=archrescue
-blddate=$(date +%Y-%m)
-bldpdir=/tmp
+bldconf=/etc/alrd-buildimg.conf
+if [[ ! -f "$bldconf" ]]; then
+  echo "Non-existent: "$bldconf""
+  exit 1
+fi
+source "$bldconf"
 
 # Buildimage anyfirm i686 environment set
 bldimg_firm_32_envset () {
@@ -73,13 +75,12 @@ bldimg_firm_32_offpkg () {
   mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
 
   network && sync=y
-  linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync base  abs b43-fwcutter binutils bridge-utils btrfs-progs cdrkit ddrescue dnsmasq dnsutils dos2unix ethtool fbdump fsarchiver git gnu-netcat gptfdisk grub haveged hdparm hwdetect hwinfo intel-ucode iotop irssi links memtest86+ mtools nmap ntp openssh os-prober partclone parted partimage pwgen rfkill rkhunter smartmontools syslinux tcpdump testdisk tmux traceroute transmission-cli tree vim-minimal vim-jellybeans wgetpaste
+  linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
 
 }
 
 bldimg_firm_32_aurpkg () {
 
-  bldapkg=(archrescue-setup armrr arpa genscripts gently-bashrc gently-vim mkinitcpio-unsquashtmpfs rback trizen vim-colorscheme-pencil-git vim-default-editor vim-pandoc-syntax-git)
   for pkg in "${bldapkg[@]}"; do
     pkgpath="$bldadir"/"$pkg"/"$pkg"
     if [ ! -f $pkgpath*.pkg.tar* ]; then
@@ -178,7 +179,7 @@ bldimg_bios_32_geniso () {
 
   bldfirm=bios
   bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
-  bldisop=/${bldison}.iso
+  bldisop="$bldisod"/"$bldison".iso
 
   cd "$bldcdir"
   genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
@@ -218,13 +219,12 @@ bldimg_firm_64_offpkg () {
   mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
 
   network && sync=y
-  linux64 pacman --root "$bldrdir" --noconfirm --needed -S$sync base  abs b43-fwcutter binutils bridge-utils btrfs-progs cdrkit ddrescue dnsmasq dnsutils dos2unix ethtool fbdump fsarchiver git gnu-netcat gptfdisk grub haveged hdparm hwdetect hwinfo intel-ucode iotop irssi links memtest86+ mtools nmap ntp openssh os-prober partclone parted partimage pwgen rfkill rkhunter smartmontools syslinux tcpdump testdisk tmux traceroute transmission-cli tree vim-minimal vim-jellybeans wgetpaste zip
+  linux64 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
 
 }
 
 bldimg_firm_64_aurpkg () {
 
-  bldapkg=(archrescue-setup armrr arpa genscripts gently-bashrc gently-vim mkinitcpio-unsquashtmpfs rback trizen vim-colorscheme-pencil-git vim-default-editor vim-pandoc-syntax-git)
   for pkg in "${bldapkg[@]}"; do
     pkgpath="$bldadir"/"$pkg"/"$pkg"
     if [ ! -f $pkgpath*.pkg.tar* ]; then
@@ -250,7 +250,7 @@ bldimg_bios_64_geniso () {
 
   bldfirm=bios
   bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
-  bldisop=/${bldison}.iso
+  bldisop="$bldisod"/"$bldison".iso
 
   cd "$bldcdir"
   genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
