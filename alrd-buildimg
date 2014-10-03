@@ -86,8 +86,8 @@ bldimg_firm_32_aurpkg () {
     pkgpath="$bldadir"/"$pkg"/"$pkg"
     if [ ! -f $pkgpath*.pkg.tar* ]; then
       network && \
-      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --asroot \
-        -Sb "$pkg"
+      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --deps \
+        --asroot -Sb "$pkg"
     fi
     pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
   done
@@ -231,8 +231,8 @@ bldimg_firm_64_aurpkg () {
     pkgpath="$bldadir"/"$pkg"/"$pkg"
     if [ ! -f $pkgpath*.pkg.tar* ]; then
       network && \
-      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --asroot \
-        -Sb "$pkg"
+      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --deps \
+        --asroot -Sb "$pkg"
     fi
     pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
   done
