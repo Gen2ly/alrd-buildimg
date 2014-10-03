@@ -53,9 +53,9 @@ bldimg_firm_32_envset () {
   bldrdir="$bldpdir"/"$bldname"_root
   [ ! -d "$bldrdir" ] && mkdir -p "$bldrdir"
 
-  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/}; do
+  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,proc}; do
+  for dir in $bldrdir/{dev,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
@@ -73,6 +73,7 @@ bldimg_firm_32_offpkg () {
   mountpoint -q "$bldrdir"/dev     || mount --bind  /dev     "$bldrdir"/dev/
   mountpoint -q "$bldrdir"/dev/pts || mount --bind  /dev/pts "$bldrdir"/dev/pts/
   mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
+  mountpoint -q "$bldrdir"/sys     || mount -t sysfs sys sys/ "$bldrdir"/sys
 
   network && sync=y
   linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
@@ -91,7 +92,7 @@ bldimg_firm_32_aurpkg () {
     pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
   done
 
-  umount --recursive "$bldrdir"/{dev,proc}
+  umount --recursive "$bldrdir"/{dev,proc,sys}
 
 }
 
@@ -197,9 +198,9 @@ bldimg_firm_64_envset () {
   bldrdir="$bldpdir"/"$bldname"_root
   [ ! -d "$bldrdir" ] && mkdir -p "$bldrdir"
 
-  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/}; do
+  for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,proc}; do
+  for dir in $bldrdir/{dev,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
@@ -214,9 +215,10 @@ bldimg_firm_64_envset () {
 
 bldimg_firm_64_offpkg () {
 
-  mountpoint -q "$bldrdir"/dev     || mount --bind  /dev     "$bldrdir"/dev/
+  mountpoint -q "$bldrdir"/dev     || mount --bind  /dev      "$bldrdir"/dev/
   mountpoint -q "$bldrdir"/dev/pts || mount --bind  /dev/pts "$bldrdir"/dev/pts/
-  mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
+  mountpoint -q "$bldrdir"/proc    || mount -t proc proc      "$bldrdir"/proc/
+  mountpoint -q "$bldrdir"/sys     || mount -t sysfs sys sys/ "$bldrdir"/sys
 
   network && sync=y
   linux64 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
@@ -235,7 +237,7 @@ bldimg_firm_64_aurpkg () {
     pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
   done
 
-  umount --recursive "$bldrdir"/{dev,proc}
+  umount --recursive "$bldrdir"/{dev,proc,sys}
 
 }
 
