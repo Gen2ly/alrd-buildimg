@@ -73,7 +73,7 @@ bldimg_firm_32_offpkg () {
   mountpoint -q "$bldrdir"/dev     || mount --bind  /dev     "$bldrdir"/dev/
   mountpoint -q "$bldrdir"/dev/pts || mount --bind  /dev/pts "$bldrdir"/dev/pts/
   mountpoint -q "$bldrdir"/proc    || mount -t proc proc     "$bldrdir"/proc/
-  mountpoint -q "$bldrdir"/sys     || mount -t sysfs sys sys/ "$bldrdir"/sys
+  mountpoint -q "$bldrdir"/sys     || mount -t sysfs sys     "$bldrdir"/sys
 
   network && sync=y
   linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
