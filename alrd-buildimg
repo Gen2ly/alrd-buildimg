@@ -302,9 +302,9 @@ bldimg_uefi_32_bootdi () {
 
 bldimg_uefi_32_geniso () {
 
-  bldfirm=bios
+  bldfirm=uefi
   bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
-  bldisop=/${bldison}.iso
+  bldisop="$bldisod"/"$bldison".iso
 
   cd "$bldcdir"
   genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
@@ -354,9 +354,9 @@ bldimg_uefi_64_bootdi () {
 
 bldimg_uefi_64_geniso () {
 
-  bldfirm=bios
+  bldfirm=uefi
   bldison="$blddist"_"$blddate"_"$bldfirm"_"$bldarch"
-  bldisop=/${bldison}.iso
+  bldisop="$bldisod"/"$bldison".iso
 
   cd "$bldcdir"
   genisoimage -input-charset utf-8 -RlDJL -V "$bldison"     \
@@ -408,17 +408,11 @@ if [ "$uefi64" ]; then
 fi
 
 # Todo
-# * variables to configuration?
-#   * blddist=archrescue
-#   * blddate=$(date +%Y-%m)
-#   * bldpdir=/tmp
-#   * bldopkg= pacman packages
-#   * bldapkg= aur    packages
-#   * bldisod= iso dest. dir
-#   * bldchot="1000:users"
+# + variables to configuration?
 # + Root test restore
 # + Network test restore
 # - aurget to manual download and compile
+# * aurget to another AURhelper?  Poor at resolving dependencies.
 # * makepkg, mkinitcpio as another architecture
 # + prevent aur package rebuild.
 # * quieter, custom feedback
