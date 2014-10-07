@@ -408,25 +408,20 @@ if [ "$uefi64" ]; then
 fi
 
 # Todo
-# * release/versioning: 2014-10-A...: alrd-buildimg, alrd-setup, mksquash?
-#   * Major.Minor-commit#
-# + variables to configuration?
-# + Root test restore
-# + Network test restore
-# - aurget to manual download and compile
+#
+# * eject on login
+# * man-db --quiet from host? `systemctl start mand-db.service`.
+# * vim colorscheme: default for 8 colors
+#
+# * makepkg, mkinitcpio as another architecture
 # * aurget to another AURhelper?  Poor at resolving dependencies.
 #   * trizen --noinstall --noedit --devel --noconfirm --movepkg_dir=/tmp -S
 #     - pkgcacheclean --cachedir=/tmp/... 1
 #   * trizen order in alrd-buildimg.conf
-# * makepkg, mkinitcpio as another architecture
-# + prevent aur package rebuild.
 # * quieter, custom feedback
-# + squashfs: and xz.
-# - squashfs: tmpfs is 1G... should it be reduced?
-# * programs to add???: safecopy?
-# * vim colorscheme: default for 8 colors
 # * syslinux background color gray
-# * man-db --quiet from host? `systemctl start mand-db.service`.
-# * eject on login
+#
+# * programs to add???: safecopy?
+# * squashfs: tmpfs is 1G... should it be reduced?
 # * hwinfo?
 # * GRUB and Bootable ISO ?? http://lukeluo.blogspot.com/2013/06/grub-how-to-2-make-boot-able-iso-with.html)
