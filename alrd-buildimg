@@ -227,15 +227,21 @@ bldimg_firm_64_offpkg () {
 
 bldimg_firm_64_aurpkg () {
 
-  for pkg in "${bldapkg[@]}"; do
-    pkgpath="$bldadir"/"$pkg"/"$pkg"
-    if [ ! -f $pkgpath*.pkg.tar* ]; then
-      network && \
-      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --deps \
-        --asroot -Sb "$pkg"
-    fi
-    pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
+  # Previous-versioned packages delete
+  pkgcacheclean --cachedir="$bldadir" --all-as-installed 1
+
+  # Array package-element remove for those already built
+  for index in ${!bldapkg[@]}; do
+    pkg="${bldapkg[index]}"
+    [ -f "$bldadir"/"$pkg"*.pkg.tar* ] && unset bldapkg[index]
   done
+
+  if [ "$bldapkg" ]; then
+    network && \
+    trizen --noinstall --noedit --noconfirm --devel --movepkg_dir="$bldadir" \
+      -S ${bldapkg}
+    pacman --root "$bldrdir" --noconfirm --needed -U "$bldadir"/*
+  fi
 
   umount --recursive "$bldrdir"/{dev,proc,sys}
 
@@ -418,6 +424,7 @@ fi
 #   * trizen --noinstall --noedit --devel --noconfirm --movepkg_dir=/tmp -S
 #     - pkgcacheclean --cachedir=/tmp/... 1
 #   * trizen order in alrd-buildimg.conf
+# * aurpkg: remove packages not in array
 # * quieter, custom feedback
 # * syslinux background color gray
 #
