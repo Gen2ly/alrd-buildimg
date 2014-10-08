@@ -38,7 +38,7 @@ fi
 [ "$error" ] && exit 1
 
 # Variables
-bldconf=/etc/alrd-buildimg.conf
+bldconf=/etc/alrd-buildimg/alrd-buildimg.conf
 if [ ! -f "$bldconf" ]; then
   echo "Non-existent: "$bldconf""
   exit 1
@@ -76,21 +76,29 @@ bldimg_firm_32_offpkg () {
   mountpoint -q "$bldrdir"/sys    || mount -t sysfs sys      "$bldrdir"/sys
 
   network && sync=y
-  linux32 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
+  linux32 pacman --root "$bldrdir" --config="$bldpcnf" --noconfirm --needed \
+    -S$sync "${bldopkg[@]}"
 
 }
 
 bldimg_firm_32_aurpkg () {
 
-  for pkg in "${bldapkg[@]}"; do
-    pkgpath="$bldadir"/"$pkg"/"$pkg"
-    if [ ! -f $pkgpath*.pkg.tar* ]; then
-      network && \
-      aurget --builddir "$bldadir" --noconfirm --noedit --nodiscard --deps \
-        --asroot -Sb "$pkg"
-    fi
-    pacman --root "$bldrdir" --noconfirm --needed -U "$pkgpath"*.pkg.tar*
+  # Previous-versioned packages delete
+  pkgcacheclean --cachedir="$bldadir" --all-as-installed 1
+
+  # Array package-element remove for those already built
+  for index in ${!bldapkg[@]}; do
+    pkg="${bldapkg[index]}"
+    [ -f "$bldadir"/"$pkg"*.pkg.tar* ] && unset bldapkg[index]
   done
+
+  if [ "$bldapkg" ]; then
+    network && \
+    trizen --noinstall --noedit --noconfirm --devel --movepkg \
+      --movepkg_dir="$bldadir" -S ${bldapkg[@]}
+    linux32 pacman --root "$bldrdir" --config="$bldpcnf" --noconfirm --needed \
+      -U "$bldadir"/*
+  fi
 
   umount --recursive "$bldrdir"/{dev,proc,sys}
 
@@ -221,7 +229,8 @@ bldimg_firm_64_offpkg () {
   mountpoint -q "$bldrdir"/sys    || mount -t sysfs sys      "$bldrdir"/sys
 
   network && sync=y
-  linux64 pacman --root "$bldrdir" --noconfirm --needed -S$sync "${bldopkg[@]}"
+  linux64 pacman --root "$bldrdir" --config="$bldpcnf" --noconfirm --needed \
+    -S$sync "${bldopkg[@]}"
 
 }
 
@@ -240,7 +249,8 @@ bldimg_firm_64_aurpkg () {
     network && \
     trizen --noinstall --noedit --noconfirm --devel --movepkg \
       --movepkg_dir="$bldadir" -S ${bldapkg[@]}
-    pacman --root "$bldrdir" --noconfirm --needed -U "$bldadir"/*
+    linux64 pacman --root "$bldrdir" --config="$bldpcnf" --noconfirm --needed \
+      -U "$bldadir"/*
   fi
 
   umount --recursive "$bldrdir"/{dev,proc,sys}
