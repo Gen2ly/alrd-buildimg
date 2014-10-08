@@ -238,8 +238,8 @@ bldimg_firm_64_aurpkg () {
 
   if [ "$bldapkg" ]; then
     network && \
-    trizen --noinstall --noedit --noconfirm --devel --movepkg_dir="$bldadir" \
-      -S ${bldapkg}
+    trizen --noinstall --noedit --noconfirm --devel --movepkg \
+      --movepkg_dir="$bldadir" -S ${bldapkg[@]}
     pacman --root "$bldrdir" --noconfirm --needed -U "$bldadir"/*
   fi
 
