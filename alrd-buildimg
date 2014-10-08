@@ -55,7 +55,7 @@ bldimg_firm_32_envset () {
 
   for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,sys}; do
+  for dir in $bldrdir/{dev,proc,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
@@ -200,7 +200,7 @@ bldimg_firm_64_envset () {
 
   for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,sys}; do
+  for dir in $bldrdir/{dev,proc,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
