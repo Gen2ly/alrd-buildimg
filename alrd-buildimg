@@ -55,7 +55,7 @@ bldimg_firm_32_envset () {
 
   for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,proc,sys}; do
+  for dir in $bldrdir/{proc,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
@@ -208,7 +208,7 @@ bldimg_firm_64_envset () {
 
   for dir in "$bldrdir"/var/{cache/pacman/pkg,lib/pacman/} "$bldrdir"/dev; do
     [ ! -d "$dir" ] && mkdir -p     "$dir"; done
-  for dir in $bldrdir/{dev,proc,sys}; do
+  for dir in $bldrdir/{proc,sys}; do
     [ ! -d "$dir" ] && mkdir -m 555 "$dir"; done
 
   bldadir="$bldpdir"/"$bldname"_aur
@@ -424,17 +424,16 @@ if [ "$uefi64" ]; then
 fi
 
 # Todo
+# * Error:
+# * /lib/modules/3.16.4-1-ARCH/modules.devname not found - ignoring
+# * blkid: -t needs NAME=value pair
+# * Device not detected: /dev/sr0
 #
 # * eject on login
 # * man-db --quiet from host? `systemctl start mand-db.service`.
 # * vim colorscheme: default for 8 colors
 #
 # * makepkg, mkinitcpio as another architecture
-# * aurget to another AURhelper?  Poor at resolving dependencies.
-#   * trizen --noinstall --noedit --devel --noconfirm --movepkg_dir=/tmp -S
-#     - pkgcacheclean --cachedir=/tmp/... 1
-#   * trizen order in alrd-buildimg.conf
-# * aurpkg: remove packages not in array
 # * quieter, custom feedback
 # * syslinux background color gray
 #
