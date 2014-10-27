@@ -1,6 +1,6 @@
 ### Description
 
-`alrd-buildimg` is a script that builds the Arch Linux Rescue Disk iso images.
+`alrd-buildimg` is a script that builds the Arch Linux Rescue Disk ISO images.
 
 ### Usage
 
